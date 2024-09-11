@@ -11,7 +11,7 @@ var app = express()
 var bodyparser = require('body-parser')
 var jsonparser = bodyparser.json()
 
-var port = process.env.PORT || 8080  // establecemos nuestro puerto
+var port = process.env.PORT || 8080 
 
 app.get('/', function(req, res) {
   res.json({ mensaje: '¡Hola Mundo!' })   
@@ -24,9 +24,6 @@ app.get('/create-keys', async function(req, res) {
 })
 
 app.get('/generate-proof', jsonparser, async function(req, res) {
-    //const { root, private_key, sibling  } = req.body
-    //console.log('[New Witness] root: ' + root + ' private_key: ' + private_key + ' sibling: ' + sibling)
-
     // TEMPORARY KEY GENERATION
     const identity = new Identity()
     await identity.generateKeys()
@@ -41,7 +38,26 @@ app.get('/generate-proof', jsonparser, async function(req, res) {
     res.json({ proof: proof, public_signals: publicSignals })  
 })
 
-// iniciamos nuestro servidor
+app.get('/verify-proof', jsonparser, async function(req, res) {
+    // const proof = req.body.proof
+    // const publicSignals = req.body.publicSignals
+
+    // TEMPORARY KEY GENERATION
+    const identity = new Identity()
+    await identity.generateKeys()
+
+    var public_key_hash = await identity.getPublicKeyHash()
+    var poseidon = await Promise.resolve(circomlib.buildPoseidon())
+    let root = poseidon.F.toString(poseidon([public_key_hash, public_key_hash]))
+
+    await({proof, publicSignals} = await CensusVerifier.generateProof(root, identity.getPrivateKey(), public_key_hash))
+    // END TEMPORARY CODE
+
+    const valid = await CensusVerifier.verifyProof(proof, publicSignals)
+    res.json({ valid: valid })  
+})
+
+// Server start
 app.use(bodyparser.json())
 app.listen(port)
 console.log('API escuchando en el puerto ' + port)

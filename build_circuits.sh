@@ -53,6 +53,8 @@ for file in "$BUILD_DIR/r1cs"/*; do
         echo "Creating verification file for $filename..."
         cd "$BUILD_DIR/verification"
         npx snarkjs groth16 setup $file ../powersOfTau28_hez_final_12.ptau "$filename".zkey
+        echo "Creating verification JSON for $filename..."
+        npx snarkjs zkey export verificationkey "$filename".zkey "$filename"_key.json
         echo -e "\e[32m[OK]\e[0m Created verification file for $(basename ${file})"
     fi
 done

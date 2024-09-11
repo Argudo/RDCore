@@ -31,14 +31,14 @@ app.get('/generate-proof', jsonparser, async function(req, res) {
     const identity = new Identity()
     await identity.generateKeys()
 
-    var poseidon_key = await identity.getPublicKey("POSEIDON")
+    var public_key_hash = await identity.getPublicKeyHash()
     var poseidon = await Promise.resolve(circomlib.buildPoseidon())
-    let root = poseidon.F.toString(poseidon([poseidon_key, poseidon_key]))
+    let root = poseidon.F.toString(poseidon([public_key_hash, public_key_hash]))
     // END TEMPORARY CODE
 
-    await({proof, public_signals} = await CensusVerifier.generateProof(root, identity.getPrivateKey(), poseidon_key))
+    await({proof, publicSignals} = await CensusVerifier.generateProof(root, identity.getPrivateKey(), public_key_hash))
 
-    res.json({ proof: proof, public_signals: public_signals })  
+    res.json({ proof: proof, public_signals: publicSignals })  
 })
 
 // iniciamos nuestro servidor

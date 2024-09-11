@@ -82,4 +82,4 @@ template GenPubKey(){
     out <== h.out;
 }
 
-component main {public [root]} = MTVerifier(2);
+component main {public [root]} = MTVerifier(1);

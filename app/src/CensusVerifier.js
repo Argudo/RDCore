@@ -19,7 +19,7 @@ class CensusVerifier{
         const identity_input = [
             ["root", root],
             ["private_key", private_key],
-            ["siblings", [sibling, sibling]]
+            ["siblings", [sibling]]
         ];
 
         const identity_array = {};
@@ -27,8 +27,10 @@ class CensusVerifier{
             identity_array[clave] = valor;
         }
 
-        const { proof, public_signals } = await snarkjs.groth16.fullProve(identity_array, `${this.wasm}`, `${this.zkey}`)
-        return { proof, public_signals }
+        console.dir(identity_array)
+
+        const { proof, publicSignals } = await snarkjs.groth16.fullProve(identity_array, `${this.wasm}`, `${this.zkey}`)
+        return { proof, publicSignals }
     }
 }
 

@@ -1,10 +1,11 @@
 
-import { View, Text,  StyleSheet, Pressable, Dimensions } from 'react-native';
+import { View, Text,  StyleSheet, Pressable, Dimensions, Modal, Button } from 'react-native';
 import { FontAwesome5, MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 import DropdownAlert, { DropdownAlertData, DropdownAlertType, } from 'react-native-dropdownalert';
-import React, { useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useEffect, useState } from 'react';
 
 
 const IconButton = (props : any) => {
@@ -39,27 +40,92 @@ const IconButton = (props : any) => {
   );
 };
 
+const KeyModel = {
+  vkc: "",
+  private_key: "",
+  public_hash: "",
+  created_at: "",
+};
+
+
 export default function KeysScreen() {
-  // State variable to hold the password
-  const [password, setPassword] = useState('fc12  ydo9  5yykc  27ycro  3dmqn08  4r8unt48f  1tp2r57ohc7m73gdzc');
-
-  // State variable to track password visibility
-  const [showPassword, setShowPassword] = useState(false);
-
-  // Function to toggle the password visibility state
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false)
   const toggleShowPassword = () => {
       setShowPassword(!showPassword);
-      showPassword ? setPassword('fc12  ydo9  5yykc  27ycro  3dmqn08  4r8unt48f  1tp2r57ohc7m73gdzc') : setPassword('···· ···· ······ ······ ······· ······· ··················');
+      showPassword ? setPassword(keys.vkc) : setPassword('···· ···· ······ ······ ······· ······· ··················');
   };
 
   let alert = (_data: DropdownAlertData) => new Promise<DropdownAlertData>(res => res);
+
+  const [keys, setKeys] = useState(KeyModel);
+  const [modalVisible, setModalVisible] = useState(false);
+  const handleCloseModal = () => { setModalVisible(false); }
+  const generateKeys = async () => {
+    const newKeys = await fetch('https://d9ca-79-117-157-51.ngrok-free.app/create-keys', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+    .then((newKeys) => newKeys.json())
+    .then((data) => {
+      KeyModel.private_key = data.private_key;
+      KeyModel.public_hash = data.public_hash;
+    })
+    .catch((error) => {
+      console.error('Error:', error);
+    });
+
+    console.log(KeyModel.public_hash);
+
+    const newVKC = fetch(`https://d9ca-79-117-157-51.ngrok-free.app/generate-keycode/${KeyModel.public_hash}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    })
+    .then((newVKC) => newVKC.json())
+    .then((data) => {
+      console.log(data);
+      KeyModel.vkc = data.keycode;
+      AsyncStorage.setItem('keys', JSON.stringify(KeyModel));
+      setModalVisible(false);
+
+      setKeys(KeyModel);
+      setPassword(KeyModel.vkc);
+    }).catch((error) => {
+      console.error('Error:', error);
+    });
+  }
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Cargar datos desde AsyncStorage
+        const stored_keys = await AsyncStorage.getItem('keys');
+        if (stored_keys !== null) {
+          // Si hay datos, guardarlos en el estado
+          setKeys(JSON.parse(stored_keys));
+          setPassword(keys.vkc);
+        } else {
+          // Si no hay datos, mostrar el modal
+          setModalVisible(true);
+        }
+      } catch (error) {
+        console.error('Error loading data', error);
+      }
+    }
+
+    fetchData();
+  });
 
   return (
     <View style={{ flex: 1, backgroundColor: '#404462' }}>
       <SafeAreaView style={{ backgroundColor: '#404462' }}>
       </SafeAreaView>
       <View style={{  backgroundColor: '#696b86'}}>
-        <Text style={styles.header}>CLAVE ACTIVA</Text>
+        <Text style={styles.header}>VKC ACTIVO</Text>
         <View style={{
               marginHorizontal : Dimensions.get('window').width / 18,
               marginTop: 16,
@@ -104,7 +170,7 @@ export default function KeysScreen() {
               title="Regenerar"
               iconSuplier={MaterialCommunityIcons}
               icon="reload"
-              onPress={() => {}}
+              onPress={ async () => { await AsyncStorage.removeItem('keys'); setModalVisible(true); setPassword('');}}
               accessibilityLabel="Learn more about this purple button"
             />
         </View>
@@ -120,6 +186,20 @@ export default function KeysScreen() {
           />
         </View>
     </View>
+    <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={handleCloseModal}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={{lineHeight: 20}}>No se encontró ninguna clave almacenada en el almacenamiento del dispostivo.</Text>
+            <Text style={{margin: 14, fontWeight: 'bold'}}>¿Deseas solicitar un nuevo VKC?</Text>
+            <Button title="Generar" onPress={generateKeys} />
+          </View>
+        </View>
+      </Modal>
     <DropdownAlert alert={func => (alert = func)} />
   </View>
   );
@@ -172,5 +252,18 @@ const styles = StyleSheet.create({
   },
   icon: {
     marginLeft: 10,
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalContent: {
+    width: 300,
+    padding: 20,
+    backgroundColor: 'white',
+    borderRadius: 10,
+    alignItems: 'center',
   },
 });

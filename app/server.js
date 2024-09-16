@@ -14,6 +14,7 @@ var app = express()
 var bodyparser = require('body-parser');
 const { hash } = require('crypto');
 const e = require('express');
+const { get } = require('http');
 var jsonparser = bodyparser.json()
 
 var port = process.env.PORT || 8080 
@@ -25,7 +26,7 @@ app.get('/', function(req, res) {
 app.get('/create-keys', async function(req, res) {
     const identity = new Identity()
     await identity.generateKeys()
-    res.json({ identity: identity })  
+    res.json({ private_key: identity.getPrivateKey().toString(), public_hash: (await identity.getPublicKeyHash()).toString() })  
 })
 
 app.get('/generate-proof', jsonparser, async function(req, res) {
@@ -62,18 +63,9 @@ app.get('/verify-proof', jsonparser, async function(req, res) {
     res.json({ valid: valid })  
 })
 
-app.get('/generate-keycode', jsonparser, async function(req, res) {
-    // TEMPORARY KEY GENERATION
-    const identity = new Identity()
-    await identity.generateKeys()
-
-    let public_key_hash = await identity.getPublicKeyHash()
-    let poseidon = await Promise.resolve(circomlib.buildPoseidon())
-    let root = poseidon.F.toString(poseidon([public_key_hash, public_key_hash]))
-    // END TEMPORARY CODE
-
+app.get('/generate-keycode/:hash', jsonparser, async function(req, res) {
     let result = "";
-    let modulo = BigInt(root);
+    let modulo = BigInt(req.params.hash);
     let n = 13n;
     console.log(`Modulo: ${modulo}`);
     
@@ -115,9 +107,9 @@ app.get('/generate-keycode', jsonparser, async function(req, res) {
         }
     }
 
-    let valid = recuperation == BigInt(root);
+    let valid = recuperation == BigInt(req.params.hash);
 
-    console.log(`Recuperation: ${recuperation} [${recuperation == BigInt(root)}]`);
+    console.log(`Recuperation: ${recuperation} [${recuperation == BigInt(req.params.hash)}]`);
 
     res.json({ valid:  valid, keycode: hex, hash: recuperation.toString() })
 })

@@ -39,7 +39,7 @@ export default function HomeScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: '#404462' }}>
     <SafeAreaView style={{ backgroundColor: '#404462' }}>
-      <Text style={styles.title}>EGID</Text>
+      <Text style={styles.title}>AEGID</Text>
     </SafeAreaView>
       <View style={{ flex: 1, padding: 'auto', alignSelf: 'stretch', backgroundColor: '#696b86'}}>
         <View style={{ margin: 'auto', gap: 24, marginHorizontal: Dimensions.get('window').width / 18 }}>

@@ -1,5 +1,5 @@
 
-import { View, Text,  StyleSheet, Pressable, Dimensions, Modal, Button } from 'react-native';
+import { View, Text,  StyleSheet, Pressable, Dimensions, Modal, Button, ScrollView } from 'react-native';
 import { FontAwesome5, MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
@@ -40,6 +40,42 @@ const IconButton = (props : any) => {
   );
 };
 
+const KeyEntry = (props : any) => {
+  return (
+    <Pressable
+      style={({ pressed }) => [
+        {
+          backgroundColor: props.disabled
+            ? "#ccc"
+            : pressed
+            ? "#9699b0"
+            : '#404462',
+          marginBottom: 24,
+        },
+        styles.container,
+        props.buttonStyles,
+      ]}
+      disabled={props.disabled}
+      onPress={props.onPress}
+      accessible
+      accessibilityLabel={props.accessibilityLabel || "A Button"}
+    >
+      <View style={{gap: 14, alignItems:  'center', flexDirection: 'column', justifyContent: 'space-between'}}>
+        <Text style={[styles.text, props.textStyles, {textAlign: 'center', lineHeight: 28}]}>
+          {props.title || "Press Me"}
+        </Text>
+      </View>
+    </Pressable>
+  );
+};
+
+interface KeyModel {
+  vkc: string;
+  private_key: string;
+  public_hash: string;
+  created_at: string;
+}
+
 const KeyModel = {
   vkc: "",
   private_key: "",
@@ -53,16 +89,31 @@ export default function KeysScreen() {
   const [showPassword, setShowPassword] = useState(false)
   const toggleShowPassword = () => {
       setShowPassword(!showPassword);
-      showPassword ? setPassword(keys.vkc) : setPassword('···· ···· ······ ······ ······· ······· ··················');
+      showPassword ? setPassword(keys.vkc.split('-').join(' ')) : setPassword(keys.vkc.split('-').join(' ').replace(/\S/gm, '·'));
   };
 
   let alert = (_data: DropdownAlertData) => new Promise<DropdownAlertData>(res => res);
 
   const [keys, setKeys] = useState(KeyModel);
+  const [history, setHistory] = useState<KeyModel[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const handleCloseModal = () => { setModalVisible(false); }
   const generateKeys = async () => {
-    const newKeys = await fetch('https://d9ca-79-117-157-51.ngrok-free.app/create-keys', {
+
+    // Si existen claves, guardarlas en el historial
+    if(keys != null){
+      AsyncStorage.getItem('history').then((history) => {
+        let storedHistory = [];
+        if (history !== null) {
+          storedHistory = JSON.parse(history);
+        }
+        storedHistory.unshift(keys);
+        AsyncStorage.setItem('history', JSON.stringify(storedHistory));
+        setHistory(storedHistory);
+      });
+    }
+
+    const newKeys = await fetch('https://4dce-79-117-157-46.ngrok-free.app/create-keys', {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -79,7 +130,7 @@ export default function KeysScreen() {
 
     console.log(KeyModel.public_hash);
 
-    const newVKC = fetch(`https://d9ca-79-117-157-51.ngrok-free.app/generate-keycode/${KeyModel.public_hash}`, {
+    const newVKC = fetch(`https://4dce-79-117-157-46.ngrok-free.app/generate-keycode/${KeyModel.public_hash}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
@@ -93,16 +144,17 @@ export default function KeysScreen() {
       setModalVisible(false);
 
       setKeys(KeyModel);
-      setPassword(KeyModel.vkc);
+      setPassword(keys.vkc.split('-').join(' '));
     }).catch((error) => {
       console.error('Error:', error);
     });
   }
 
   useEffect(() => {
+    // Cargar datos desde AsyncStorage
     const fetchData = async () => {
       try {
-        // Cargar datos desde AsyncStorage
+        // Recuperar clave activa
         const stored_keys = await AsyncStorage.getItem('keys');
         if (stored_keys !== null) {
           // Si hay datos, guardarlos en el estado
@@ -112,13 +164,24 @@ export default function KeysScreen() {
           // Si no hay datos, mostrar el modal
           setModalVisible(true);
         }
+
+        const stored_history = await AsyncStorage.getItem('history');
+        if (stored_history !== null) {
+          setHistory(JSON.parse(stored_history));
+        }
       } catch (error) {
         console.error('Error loading data', error);
       }
     }
 
     fetchData();
-  });
+  }, []);
+
+  useEffect(() => {
+    if (keys && keys.vkc) {
+      setPassword(keys.vkc.split('-').join(' '));
+    }
+  }, [keys]);
 
   return (
     <View style={{ flex: 1, backgroundColor: '#404462' }}>
@@ -134,7 +197,7 @@ export default function KeysScreen() {
             }}>
           <Text style={{
               color: 'white',
-              fontSize: showPassword ? 44 : 24,
+              fontSize: showPassword ? 40 : 24,
               lineHeight: showPassword ? 40 : 40,
               paddingTop: showPassword ? 26 : 16,
               padding: 16,
@@ -177,14 +240,19 @@ export default function KeysScreen() {
     </View>
     <View style={{ flex: 2,  backgroundColor: '#696b86'}}>
         <Text style={styles.header}>HISTORIAL DE CLAVES</Text>
-        <View style={styles.keyContainer}>
-          <IconButton
-            title="CONSULTAR  CLAVE"
-            iconSuplier={FontAwesome5}
-            icon="eye"
-            accessibilityLabel="Learn more about this purple button"
-          />
-        </View>
+        <ScrollView style={styles.keyContainer}>
+          {
+            history.map((item, index) => (
+              <KeyEntry
+                key={index}
+                title={item.vkc.split('-').join(' ')}
+                iconSuplier={FontAwesome5}
+                icon="eye"
+                accessibilityLabel="Learn more about this purple button"
+              />
+            ))
+          }
+        </ScrollView>
     </View>
     <Modal
         animationType="slide"
@@ -237,11 +305,11 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   keyContainer: {
-    flex: 1,
     flexDirection: 'column',
     gap: 16,
     marginHorizontal: Dimensions.get('window').width / 18, 
     marginTop: 16,
+    textAlign: 'center',
   },
   input: {
       flex: 1,

@@ -29,7 +29,14 @@ app.get('/create-keys', async function(req, res) {
     res.json({ private_key: identity.getPrivateKey().toString(), public_hash: (await identity.getPublicKeyHash()).toString() })  
 })
 
-app.get('/generate-proof', jsonparser, async function(req, res) {
+app.get('/calculate-parent-node', async function(req, res) {
+    var poseidon = await Promise.resolve(circomlib.buildPoseidon())
+    let root = poseidon.F.toString(poseidon([req.node_1, req.node_2]))
+
+    res.json({root: root});
+})
+
+app.get('/generate-proof/:root/:private_key/:public_key', jsonparser, async function(req, res) {
     // TEMPORARY KEY GENERATION
     const identity = new Identity()
     await identity.generateKeys()

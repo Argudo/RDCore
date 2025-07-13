@@ -1,85 +1,66 @@
-pragma circom  2.1.6;
+pragma circom 2.1.6;
 
 include "node_modules/circomlib/circuits/poseidon.circom";
 include "node_modules/circomlib/circuits/babyjub.circom";
 
-template MTVerifier(node_depth){
+// Profundidad fija del árbol Merkle
+template MTVerifier(depth) {
     signal input root;
     signal input private_key;
-    signal input siblings[node_depth];
+    signal input siblings[depth];
     signal output valid;
     signal output generated_root;
 
-    var hxPK;
-    var public_key;
-
+    // Generar clave pública desde la clave privada
     component babyjub = BabyPbk();
     babyjub.in <== private_key;
 
     component GenPK = GenPubKey();
     GenPK.x <== babyjub.Ax;
     GenPK.y <== babyjub.Ay;
-    hxPK = GenPK.out;
 
-    var left;
-    var right;
-    var partial_root;
-    left  = hxPK;
-    right = siblings[0];
+    var partial_root = GenPK.out;
 
-    log("\n[Circuit Identity]\n\tCx: " , babyjub.Ax, "\n\tCy: ", babyjub.Ay);
-    log("\tPublic Key: ", hxPK);
+    component hash[depth];
 
-    component MTHash = SMTHash2();
-    component hash[node_depth];
-    MTHash.L <== left;
-    MTHash.R <== right;
-    partial_root = MTHash.out;
-    log("Generated node 0: ",partial_root);
-    for (var i = 1; i < node_depth; i++) {
+    for (var i = 0; i < depth; i++) {
         hash[i] = SMTHash2();
         hash[i].L <== partial_root;
         hash[i].R <== siblings[i];
         partial_root = hash[i].out;
-        log("Generated node", i, ": ",partial_root);
     }
 
     generated_root <== partial_root;
-    
-    component CheckRoot = IsEqual();
-    CheckRoot.in[0] <== partial_root;
-    CheckRoot.in[1] <== root;
 
-    valid <== CheckRoot.out;
+    component check = IsEqual();
+    check.in[0] <== root;
+    check.in[1] <== partial_root;
+
+    valid <== check.out;
 }
 
-
-/*
-    This component is used to create the 2 nodes.
-    Hash2 = H(Hl | Hr)
-*/
+// Hashea dos valores (L || R) con Poseidon
 template SMTHash2() {
     signal input L;
     signal input R;
     signal output out;
 
-    component h = Poseidon(2);   // Constant
+    component h = Poseidon(2);
     h.inputs[0] <== L;
     h.inputs[1] <== R;
-
     out <== h.out;
 }
 
-template GenPubKey(){
+// Hashea clave pública (x, y)
+template GenPubKey() {
     signal input x;
     signal input y;
     signal output out;
 
-    component h = Poseidon(2); 
+    component h = Poseidon(2);
     h.inputs[0] <== x;
     h.inputs[1] <== y;
-
     out <== h.out;
 }
 
-component main {public [root]} = MTVerifier(1);
+component main {public [root]} = MTVerifier(16);

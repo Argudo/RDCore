@@ -1,44 +1,67 @@
 'use strict';
 
-var fs = require('fs');          
-var process = require('child_process');
-var snarkjs = require("snarkjs");
+const fs = require('fs');
+const snarkjs = require("snarkjs");
 
-class CensusVerifier{
-    static path = "./circuits_build/witness/census_js/"
-    static wasm = "./circuits_build/witness/census_js/census.wasm"
-    static r1cs = "./circuits_build/r1cs/census.r1cs"
-    static wtns = "./circuits_build/witness/census_js/witness.wtns"
-    static gen_wtns = "./circuits_build/witness/census_js/generate_witness.js"
-    static zkey = "./circuits_build/verification/census.zkey"
-    static json_zkey = "./circuits_build/verification/census_key.json"
+class CensusVerifier {
+  static DEPTHS = [1, 2, 3, 4, 5, 6, 7];
+  static BASE_PATH = "./circuits_build";
 
-    constructor(){
+  static getCircuitFiles(depth) {
+    return {
+      wasm: `${this.BASE_PATH}/witness/census_${depth}_js/census_${depth}.wasm`,
+      zkey: `${this.BASE_PATH}/verification/census_${depth}.zkey`,
+      vkey: `${this.BASE_PATH}/verification/census_${depth}_vkey.json`,
+    };
+  }
+
+  static async generateProof(root, private_key, siblings) {
+    const requiredDepth = siblings.length;
+    const chosenDepth = this.DEPTHS.find(d => d >= requiredDepth);
+
+    if (!chosenDepth) {
+      throw new Error(`No hay circuitos disponibles para profundidad ${requiredDepth}`);
     }
 
-    static async generateProof(root, private_key, sibling){
-        const identity_input = [
-            ["root", root],
-            ["private_key", private_key],
-            ["siblings", [sibling]]
-        ];
-
-        const identity_array = {};
-        for (const [clave, valor] of identity_input) {
-            identity_array[clave] = valor;
-        }
-
-        console.dir(identity_array)
-
-        const { proof, publicSignals } = await snarkjs.groth16.fullProve(identity_array, `${this.wasm}`, `${this.zkey}`)
-        return { proof, publicSignals }
+    const paddedSiblings = siblings.slice();
+    while (paddedSiblings.length < chosenDepth) {
+      paddedSiblings.push("0");
     }
 
-    static async verifyProof(proof, public_signals){
-        const v_key = JSON.parse(fs.readFileSync(this.json_zkey));
-        const valid = await snarkjs.groth16.verify(v_key, public_signals, proof);
-        return valid;
+    const input = {
+      root: BigInt(root).toString(),
+      private_key: BigInt(private_key).toString(),
+      siblings: paddedSiblings.map(x => BigInt(x).toString())
+    };
+
+    console.log(`[DEBUG] Generando prueba para profundidad ${chosenDepth}`);
+    console.log(`[DEBUG] Input:`, input);
+
+    const { wasm, zkey } = this.getCircuitFiles(chosenDepth);
+    console.log(`[DEBUG] Archivos: wasm=${wasm}, zkey=${zkey}`);
+
+    const { proof, publicSignals } = await snarkjs.groth16.fullProve(input, wasm, zkey);
+    console.log(`[DEBUG] Prueba generada con éxito`);
+
+    return { proof, publicSignals, depth: chosenDepth };
+  }
+
+  static async verifyProof(proof, public_signals, depth) {
+    console.log(`[DEBUG] Verificando prueba para profundidad ${depth}`);
+
+    if (!this.DEPTHS.includes(depth)) {
+      throw new Error(`Profundidad ${depth} no soportada`);
     }
+
+    const { vkey } = this.getCircuitFiles(depth);
+    console.log(`[DEBUG] vkey: ${vkey}`);
+
+    const vkeyJson = JSON.parse(fs.readFileSync(vkey));
+    const valid = await snarkjs.groth16.verify(vkeyJson, public_signals, proof);
+
+    valid? console.log(`[DEBUG] Prueba válida`) : console.log(`[DEBUG] Prueba inválida`);
+    return valid;
+  }
 }
 
 module.exports = CensusVerifier;

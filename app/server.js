@@ -29,11 +29,11 @@ app.get('/calculate-parent-node', async function(req, res) {
   res.json({ root: root });
 });
 
-app.get('/generate-proof/:root/:private_key/:public_hash', async function(req, res) {
+app.post('/generate-proof', async (req, res) => {
   try {
-    const { root, private_key, public_hash } = req.params;
-    const { proof, publicSignals } = await CensusVerifier.generateProof(root, private_key, public_hash);
-    res.json({ proof: proof, public_signals: publicSignals });
+    const { root, private_key, siblings } = req.body;
+    const { proof, publicSignals, depth } = await CensusVerifier.generateProof(root, private_key, siblings);
+    res.json({ proof, public_signals: publicSignals, depth });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -41,8 +41,8 @@ app.get('/generate-proof/:root/:private_key/:public_hash', async function(req, r
 
 app.post('/verify-proof', jsonparser, async function(req, res) {
   try {
-    const { proof, public_signals } = req.body;
-    const valid = await CensusVerifier.verifyProof(proof, public_signals);
+    const { proof, public_signals, depth } = req.body;
+    const valid = await CensusVerifier.verifyProof(proof, public_signals, depth);
     res.json({ valid: valid });
   } catch (e) {
     res.status(500).json({ error: e.message });
